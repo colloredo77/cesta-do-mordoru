@@ -48,6 +48,20 @@ class Repo {
         familyRef(code).set(fields, SetOptions.merge()).await()
     }
 
+    /** Nová cesta od dneška – členové a profily zůstanou, Glum začne znovu. */
+    suspend fun restartFamily(code: String) {
+        familyRef(code).update(
+            mapOf("startDate" to LocalDate.now().toString(), "gollumDays" to emptyMap<String, Any>())
+        ).await()
+    }
+
+    /** Smaže výpravu včetně všech členů. */
+    suspend fun deleteFamily(code: String) {
+        val ms = familyRef(code).collection("members").get().await()
+        ms.documents.forEach { it.reference.delete().await() }
+        familyRef(code).delete().await()
+    }
+
     suspend fun saveMember(code: String, id: String, name: String, character: String, photo: String?, strideCm: Int) {
         memberRef(code, id).set(
             mapOf("name" to name, "character" to character, "photo" to photo, "strideCm" to strideCm.toLong()),

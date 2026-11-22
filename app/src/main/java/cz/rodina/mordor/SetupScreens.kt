@@ -52,6 +52,7 @@ fun FamilySetup(vm: MainViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Title("Cesta do Mordoru")
+        Text("verze ${BuildConfig.VERSION_CODE}", color = InkSoft, style = MaterialTheme.typography.bodySmall)
         Text(
             "Každý krok z hodinek vás posune Středozemí od Hobitína až k Hoře osudu. A Glum vám jde v patách.",
             textAlign = TextAlign.Center, color = InkSoft,

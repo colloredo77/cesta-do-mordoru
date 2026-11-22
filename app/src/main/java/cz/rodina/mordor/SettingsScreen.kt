@@ -1,6 +1,7 @@
 package cz.rodina.mordor
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,8 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
     var city by remember(family.code) { mutableStateOf(family.city) }
     var base by remember(family.code) { mutableFloatStateOf(family.gollumBase.toFloat()) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmRestart by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
@@ -79,7 +82,60 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
             }
         }
 
-        TextButton(onClick = { confirmLeave = true }, modifier = Modifier.fillMaxWidth()) { Text("Odejít z výpravy v tomto telefonu", color = Blood) }
+        Title("Aplikace")
+        ScrollCard {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Verze ${BuildConfig.VERSION_NAME}")
+                val upd = vm.update
+                if (upd != null) {
+                    Button(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(upd.url))) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Stáhnout novou verzi ${upd.version}")
+                    }
+                }
+                OutlinedButton(onClick = { vm.checkUpdate(manual = true) }, modifier = Modifier.fillMaxWidth()) { Text("Zkontrolovat aktualizace") }
+                Text(
+                    "Stažený soubor otevřete a dejte Instalovat – nová verze se nainstaluje přes starou a nic se neztratí.",
+                    style = MaterialTheme.typography.bodySmall, color = InkSoft,
+                )
+            }
+        }
+
+        Title("Správa výpravy")
+        ScrollCard {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { confirmRestart = true }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Začít cestu znovu (od Hobitína)")
+                }
+                OutlinedButton(onClick = { confirmDelete = true }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Smazat celou výpravu", color = Blood)
+                }
+                TextButton(onClick = { confirmLeave = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Jen odejít z výpravy v tomto telefonu", color = InkSoft)
+                }
+            }
+        }
+    }
+
+    if (confirmRestart) {
+        AlertDialog(
+            onDismissRequest = { confirmRestart = false },
+            containerColor = Parchment,
+            title = { Text("Začít cestu znovu?") },
+            text = { Text("Všichni se vrátí do Hobitína a Glum znovu vyrazí za vámi. Členové, fotky a postavy zůstanou. Platí pro celou rodinu.") },
+            confirmButton = { TextButton(onClick = { confirmRestart = false; vm.restartJourney() }) { Text("Začít znovu", color = Blood) } },
+            dismissButton = { TextButton(onClick = { confirmRestart = false }) { Text("Zpět") } },
+        )
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = Parchment,
+            title = { Text("Smazat výpravu?") },
+            text = { Text("Smaže se výprava ${family.code} i všichni členové a jejich kroky – na všech telefonech. Nejde to vrátit.") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteFamily() }) { Text("Smazat", color = Blood) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Zpět") } },
+        )
     }
 
     if (confirmLeave) {

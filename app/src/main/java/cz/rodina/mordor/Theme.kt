@@ -21,6 +21,8 @@ val Blood = Color(0xFF8B1E1E)
 val Elf = Color(0xFF3E5B3A)
 val River = Color(0xFF4F6F86)
 val Shadow = Color(0xFF1E2418)
+val Leather = Color(0xFF2B1D12)
+val GoldLight = Color(0xFFE9C46A)
 
 val MemberColors = listOf(Color(0xFF2E6B3A), Color(0xFF8B1E1E), Color(0xFF2F4F7F), Color(0xFF9A6A12), Color(0xFF6A3D7A), Color(0xFF3D6E6E))
 

@@ -6,6 +6,12 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Base64
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,11 +30,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -73,21 +81,36 @@ fun Avatar(photo: String?, name: String, size: Dp, border: Color, modifier: Modi
     }
 }
 
-/** Glum na mapě: jen dvě svítící oči ve tmě. */
+/** Glum na mapě: jen dvě svítící oči ve tmě, které občas mrknou. */
 @Composable
 fun GollumMarker(dp: Dp, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "blink")
+    val open by t.animateFloat(
+        initialValue = 1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            keyframes {
+                durationMillis = 3600
+                1f at 0
+                1f at 3250
+                0.1f at 3380
+                1f at 3600
+            }
+        ),
+        label = "blink",
+    )
+    val glow by t.animateFloat(0.25f, 0.6f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "glow")
     Canvas(modifier.size(dp)) {
         val s = size.minDimension
+        drawCircle(Color(0xFFD7F26B).copy(alpha = glow * 0.35f), s * 0.62f)
         drawCircle(Shadow)
         drawCircle(Color(0xFF6B7F3A), style = Stroke(s * 0.06f))
         val eye = Color(0xFFD7F26B)
         val r = s * 0.11f
-        val l = center + Offset(-s * 0.17f, -s * 0.04f)
-        val rr = center + Offset(s * 0.17f, -s * 0.04f)
-        drawCircle(eye, r, l)
-        drawCircle(eye, r, rr)
-        drawCircle(Color.Black, r * 0.45f, l)
-        drawCircle(Color.Black, r * 0.45f, rr)
+        listOf(center + Offset(-s * 0.17f, -s * 0.04f), center + Offset(s * 0.17f, -s * 0.04f)).forEach { e ->
+            val eh = r * 2 * open
+            drawOval(eye, topLeft = Offset(e.x - r, e.y - eh / 2), size = Size(r * 2, eh))
+            if (open > 0.5f) drawCircle(Color.Black, r * 0.45f, e)
+        }
     }
 }
 

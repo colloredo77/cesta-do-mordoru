@@ -1,11 +1,16 @@
 package cz.rodina.mordor
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -104,13 +110,28 @@ fun MainTabs(vm: MainViewModel, family: Family, members: List<Member>, game: Gam
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
-            when (tab) {
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            vm.update?.let { UpdateBanner(it) }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when (tab) {
                 0 -> MapScreen(game, colors)
                 1 -> PartyScreen(vm, family, game, me, colors)
                 2 -> ChronicleScreen(game)
-                else -> SettingsScreen(vm, family, members, me)
+                    else -> SettingsScreen(vm, family, members, me)
+                }
             }
         }
+    }
+}
+
+@Composable
+fun UpdateBanner(u: UpdateInfo) {
+    val ctx = LocalContext.current
+    Row(
+        Modifier.fillMaxWidth().background(Leather).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Nová verze ${u.version} je připravena", color = GoldLight, modifier = Modifier.weight(1f))
+        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) }) { Text("Stáhnout", color = Parchment) }
     }
 }

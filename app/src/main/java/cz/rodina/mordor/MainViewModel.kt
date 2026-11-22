@@ -30,6 +30,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var message by mutableStateOf<String?>(null)
     var busy by mutableStateOf(false); private set
     var ready by mutableStateOf(false); private set
+    var update by mutableStateOf<UpdateInfo?>(null); private set
+    private var lastUpdateCheck = 0L
 
     val family = MutableStateFlow<Family?>(null)
     val members = MutableStateFlow<List<Member>>(emptyList())
@@ -58,10 +60,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun listen(code: String) {
         listenJob?.cancel()
         listenJob = viewModelScope.launch {
+            var seen = false
             launch {
                 repo.familyFlow(code).collect { f ->
+                    if (f == null && seen) {
+                        leave()
+                        message = "Výprava byla smazána. Můžete založit novou."
+                        return@collect
+                    }
                     family.value = f
                     if (f != null) {
+                        seen = true
                         launch { ensureGollum(f) }
                         if (!firstSyncDone) { firstSyncDone = true; launch { syncHealthNow(silent = true) } }
                     }
@@ -105,6 +114,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onResume() {
         today.value = LocalDate.now()
+        if (System.currentTimeMillis() - lastUpdateCheck > 60 * 60 * 1000L) checkUpdate(manual = false)
         if (familyCode != null && memberId != null) viewModelScope.launch { syncHealthNow(silent = true) }
         family.value?.let { f -> viewModelScope.launch { ensureGollum(f) } }
     }
@@ -230,6 +240,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (message == null) message = "Uloženo. Glum se řídí novým nastavením od dnešní noci."
         } catch (e: Exception) {
             message = "Uložení selhalo: ${e.message}"
+        } finally {
+            busy = false
+        }
+    }
+
+    fun checkUpdate(manual: Boolean) = viewModelScope.launch {
+        lastUpdateCheck = System.currentTimeMillis()
+        try {
+            update = Updater.check()
+            if (manual) message = update?.let { "Je k dispozici nová verze ${it.version}." } ?: "Máte nejnovější verzi (${Updater.current})."
+        } catch (e: PrivateRepoException) {
+            if (manual) message = "Aktualizace nejde zkontrolovat – repozitář na GitHubu je soukromý."
+        } catch (e: Exception) {
+            if (manual) message = "Kontrola aktualizace selhala: ${e.message}"
+        }
+    }
+
+    fun restartJourney() = viewModelScope.launch {
+        val code = familyCode ?: return@launch
+        busy = true
+        try {
+            repo.restartFamily(code)
+            message = "Nová cesta začíná! Všichni stojí v Hobitíně, Glum je opět ${Gollum.HEAD_START_KM.toInt()} km za vámi."
+        } catch (e: Exception) {
+            message = "Nepodařilo se: ${e.message}"
+        } finally {
+            busy = false
+        }
+    }
+
+    fun deleteFamily() = viewModelScope.launch {
+        val code = familyCode ?: return@launch
+        busy = true
+        try {
+            listenJob?.cancel()
+            repo.deleteFamily(code)
+            leave()
+            message = "Výprava smazána."
+        } catch (e: Exception) {
+            message = "Smazání selhalo: ${e.message}"
+            listen(code)
         } finally {
             busy = false
         }
