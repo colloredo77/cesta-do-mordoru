@@ -15,11 +15,13 @@ android {
         targetSdk = 34
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        // owner/repo – GitHub Actions nastaví samo, slouží ke kontrole aktualizací
         buildConfigField("String", "GITHUB_REPO", "\"" + (System.getenv("GITHUB_REPOSITORY") ?: "") + "\"")
     }
 
     signingConfigs {
         getByName("debug") {
+            // Pevný klíč, aby šly nové verze instalovat přes staré bez odinstalace
             storeFile = file("debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
@@ -55,6 +57,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
 
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
     implementation("com.google.firebase:firebase-firestore")
