@@ -21,7 +21,7 @@ fun ChronicleScreen(game: GameState) {
                     Text(dayLabel(e.day), style = MaterialTheme.typography.labelMedium, color = InkSoft)
                     Text(
                         e.text,
-                        color = when (e.kind) { Kind.CAUGHT -> Blood; Kind.FINISH -> Gold; else -> Ink },
+                        color = when (e.kind) { Kind.CAUGHT -> Blood; Kind.FINISH -> Gold; Kind.ENEMY -> River; else -> Ink },
                         fontWeight = if (e.kind == Kind.WAYPOINT) FontWeight.Normal else FontWeight.Bold,
                     )
                 }
@@ -33,9 +33,12 @@ fun ChronicleScreen(game: GameState) {
                 Text(dayLabel(d.day), fontWeight = FontWeight.Bold)
                 Text("Výprava: ${d.familySteps.fmt()} kroků", style = MaterialTheme.typography.bodySmall)
                 Text(
-                    d.gollum?.let { "Glum: ${it.steps.fmt()} kroků – ${it.reason}" } ?: "Glum: vyrazí v noci…",
+                    d.gollum?.let { "Glum: +${Gollum.km(it.steps).km()} – ${it.reason}" } ?: "Glum: vyrazí v noci…",
                     style = MaterialTheme.typography.bodySmall, color = InkSoft,
                 )
+                d.nazgul?.let {
+                    Text("Nazgûl: +${it.km.km()} – ${it.reason}", style = MaterialTheme.typography.bodySmall, color = River)
+                }
             }
         }
     }

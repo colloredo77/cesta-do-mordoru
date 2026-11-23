@@ -114,6 +114,38 @@ fun GollumMarker(dp: Dp, modifier: Modifier = Modifier) {
     }
 }
 
+/** Nazgûl na mapě: černá kápě s ledově modrou září a dvěma bledými štěrbinami. */
+@Composable
+fun NazgulMarker(dp: Dp, modifier: Modifier = Modifier, winged: Boolean = false) {
+    val t = rememberInfiniteTransition(label = "nazgul")
+    val glow by t.animateFloat(0.3f, 0.85f, infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "glow")
+    Canvas(modifier.size(dp)) {
+        val s = size.minDimension
+        val ice = Color(0xFF8FD3FF)
+        drawCircle(ice.copy(alpha = glow * 0.4f), s * 0.62f)
+        drawCircle(Color(0xFF0B0D14))
+        drawCircle(ice.copy(alpha = 0.8f), style = Stroke(s * 0.06f))
+        if (winged) {
+            val wing = androidx.compose.ui.graphics.Path().apply {
+                moveTo(center.x - s * 0.1f, center.y + s * 0.18f)
+                lineTo(center.x - s * 0.42f, center.y - s * 0.05f)
+                lineTo(center.x - s * 0.3f, center.y + s * 0.25f)
+                close()
+                moveTo(center.x + s * 0.1f, center.y + s * 0.18f)
+                lineTo(center.x + s * 0.42f, center.y - s * 0.05f)
+                lineTo(center.x + s * 0.3f, center.y + s * 0.25f)
+                close()
+            }
+            drawPath(wing, Color(0xFF3A4458))
+        }
+        // kápě
+        drawArc(Color(0xFF2A3040), 180f, 180f, useCenter = false, topLeft = Offset(s * 0.22f, s * 0.2f), size = Size(s * 0.56f, s * 0.56f), style = Stroke(s * 0.07f))
+        val eye = Color(0xFFD8F1FF).copy(alpha = 0.5f + glow * 0.5f)
+        drawOval(eye, topLeft = Offset(s * 0.32f, s * 0.44f), size = Size(s * 0.13f, s * 0.05f))
+        drawOval(eye, topLeft = Offset(s * 0.55f, s * 0.44f), size = Size(s * 0.13f, s * 0.05f))
+    }
+}
+
 @Composable
 fun Title(text: String, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {

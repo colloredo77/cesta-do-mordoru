@@ -40,6 +40,8 @@ class Repo {
                 "lon" to lon,
                 "gollumBase" to 8000L,
                 "gollumDays" to emptyMap<String, Any>(),
+                "nazgulBase" to 6.0,
+                "nazgulDays" to emptyMap<String, Any>(),
             )
         ).await()
     }
@@ -51,7 +53,11 @@ class Repo {
     /** Nová cesta od dneška – členové a profily zůstanou, Glum začne znovu. */
     suspend fun restartFamily(code: String) {
         familyRef(code).update(
-            mapOf("startDate" to LocalDate.now().toString(), "gollumDays" to emptyMap<String, Any>())
+            mapOf(
+                "startDate" to LocalDate.now().toString(),
+                "gollumDays" to emptyMap<String, Any>(),
+                "nazgulDays" to emptyMap<String, Any>(),
+            )
         ).await()
     }
 
@@ -82,10 +88,12 @@ class Repo {
     suspend fun setManual(code: String, id: String, day: String, steps: Long?) =
         updatePaths(code, id, listOf(FieldPath.of("manual", day) to (steps ?: FieldValue.delete())))
 
-    suspend fun setGollumDays(code: String, days: Map<String, GollumDay>) =
-        updatePaths(code, null, days.map {
-            FieldPath.of("gollumDays", it.key) to (mapOf("steps" to it.value.steps, "reason" to it.value.reason) as Any)
-        })
+    suspend fun setEnemyDays(code: String, gollum: Map<String, GollumDay>, nazgul: Map<String, EnemyDay>) =
+        updatePaths(
+            code, null,
+            gollum.map { FieldPath.of("gollumDays", it.key) to (mapOf("steps" to it.value.steps, "reason" to it.value.reason) as Any) } +
+                nazgul.map { FieldPath.of("nazgulDays", it.key) to (mapOf("km" to it.value.km, "reason" to it.value.reason) as Any) },
+        )
 
     fun familyFlow(code: String): Flow<Family?> = callbackFlow {
         val reg = familyRef(code).addSnapshotListener { s, e ->
@@ -115,6 +123,11 @@ class Repo {
             val st = (m?.get("steps") as? Number)?.toLong()
             if (k is String && st != null) k to GollumDay(st, m?.get("reason") as? String ?: "") else null
         }?.toMap() ?: emptyMap()
+        val nd = (s.get("nazgulDays") as? Map<*, *>)?.mapNotNull { (k, v) ->
+            val m = v as? Map<*, *>
+            val km = (m?.get("km") as? Number)?.toDouble()
+            if (k is String && km != null) k to EnemyDay(km, m?.get("reason") as? String ?: "") else null
+        }?.toMap() ?: emptyMap()
         return Family(
             code = code,
             name = s.getString("name") ?: "Společenstvo",
@@ -124,6 +137,8 @@ class Repo {
             lon = s.getDouble("lon"),
             gollumBase = s.getLong("gollumBase") ?: 8000L,
             gollumDays = gd,
+            nazgulBase = (s.get("nazgulBase") as? Number)?.toDouble() ?: 6.0,
+            nazgulDays = nd,
         )
     }
 

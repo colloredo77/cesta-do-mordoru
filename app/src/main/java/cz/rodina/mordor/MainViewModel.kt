@@ -19,6 +19,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
+data class Forecast(val gollum: GollumDay, val nazgul: EnemyDay, val weather: DayWeather)
+
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("mordor", Context.MODE_PRIVATE)
     private val repo = Repo()
@@ -42,7 +44,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private var listenJob: Job? = null
-    private var gollumBusy = false
+    private var enemiesBusy = false
+    var forecast by mutableStateOf<Forecast?>(null); private set
+    private var forecastAt = 0L
+    var reportDay by mutableStateOf(prefs.getString("report", null)); private set
     private var firstSyncDone = false
 
     init {
@@ -71,7 +76,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     family.value = f
                     if (f != null) {
                         seen = true
-                        launch { ensureGollum(f) }
+                        launch { ensureEnemies(f) }
+                        launch { refreshForecast(f) }
                         if (!firstSyncDone) { firstSyncDone = true; launch { syncHealthNow(silent = true) } }
                     }
                 }
@@ -80,43 +86,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Dopočítá Glumovy kroky za uplynulé dny, které ještě nemá (podle počasí). */
-    private suspend fun ensureGollum(f: Family) {
-        if (gollumBusy) return
+    /** Dopočítá noční pohyb Gluma a Nazgûla za uplynulé dny, které ještě nemají (podle počasí). */
+    private suspend fun ensureEnemies(f: Family) {
+        if (enemiesBusy) return
         val now = LocalDate.now()
         val yesterday = now.minusDays(1)
         val start = runCatching { LocalDate.parse(f.startDate) }.getOrNull() ?: return
-        val missing = generateSequence(start) { it.plusDays(1) }
+        val days = generateSequence(start) { it.plusDays(1) }
             .takeWhile { !it.isAfter(yesterday) }
             .map { it.toString() }
-            .filter { it !in f.gollumDays }
             .toList()
-        if (missing.isEmpty()) return
-        gollumBusy = true
+        val missingG = days.filter { it !in f.gollumDays }
+        val missingN = days.filter { it !in f.nazgulDays }
+        if (missingG.isEmpty() && missingN.isEmpty()) return
+        enemiesBusy = true
         try {
             val hasPlace = f.lat != null && f.lon != null
             val weather: Map<String, DayWeather> = if (hasPlace) {
                 runCatching { Weather.pastDays(f.lat!!, f.lon!!, 92) }.getOrNull() ?: return // offline – zkusíme příště
             } else emptyMap()
             val cutoff = now.minusDays(90).toString()
-            val res = missing.mapNotNull { day ->
-                val w = weather[day]
-                if (w == null && hasPlace && day >= cutoff) null
-                else day to Gollum.stepsFor(day, f.gollumBase, w)
-            }.toMap()
-            repo.setGollumDays(f.code, res)
+            fun skip(day: String) = weather[day] == null && hasPlace && day >= cutoff
+            val g = missingG.filterNot { skip(it) }.associateWith { Gollum.stepsFor(it, f.gollumBase, weather[it]) }
+            val n = missingN.filterNot { skip(it) }.associateWith { Nazgul.kmFor(it, f.nazgulBase, weather[it]) }
+            repo.setEnemyDays(f.code, g, n)
         } catch (e: Exception) {
-            message = "Glum se zasekl: ${e.message}"
+            message = "Nepřátelé se zasekli: ${e.message}"
         } finally {
-            gollumBusy = false
+            enemiesBusy = false
         }
+    }
+
+    /** Předpověď, jak rychle se nepřátelé pohnou dnešní noc. */
+    private suspend fun refreshForecast(f: Family) {
+        if (System.currentTimeMillis() - forecastAt < 3 * 60 * 60 * 1000L && forecast != null) return
+        val lat = f.lat ?: return
+        val lon = f.lon ?: return
+        val w = runCatching { Weather.pastDays(lat, lon, 1) }.getOrNull() ?: return
+        val key = LocalDate.now().toString()
+        val today = w[key] ?: return
+        forecast = Forecast(Gollum.stepsFor(key, f.gollumBase, today), Nazgul.kmFor(key, f.nazgulBase, today), today)
+        forecastAt = System.currentTimeMillis()
+    }
+
+    fun dismissReport() {
+        val t = LocalDate.now().toString()
+        prefs.edit().putString("report", t).apply()
+        reportDay = t
     }
 
     fun onResume() {
         today.value = LocalDate.now()
         if (System.currentTimeMillis() - lastUpdateCheck > 60 * 60 * 1000L) checkUpdate(manual = false)
         if (familyCode != null && memberId != null) viewModelScope.launch { syncHealthNow(silent = true) }
-        family.value?.let { f -> viewModelScope.launch { ensureGollum(f) } }
+        family.value?.let { f ->
+            viewModelScope.launch { ensureEnemies(f) }
+            viewModelScope.launch { refreshForecast(f) }
+        }
     }
 
     fun createFamily(name: String, city: String) = viewModelScope.launch {
@@ -221,11 +247,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateFamily(name: String, city: String, gollumBase: Long) = viewModelScope.launch {
+    fun updateFamily(name: String, city: String, gollumBase: Long, nazgulBase: Double) = viewModelScope.launch {
         val f = family.value ?: return@launch
         busy = true
         try {
-            val fields = mutableMapOf<String, Any?>("name" to name.ifBlank { f.name }, "gollumBase" to gollumBase)
+            val fields = mutableMapOf<String, Any?>("name" to name.ifBlank { f.name }, "gollumBase" to gollumBase, "nazgulBase" to nazgulBase)
+            forecastAt = 0L
             if (city.isNotBlank() && city != f.city) {
                 val place = runCatching { Weather.geocode(city) }.getOrNull()
                 if (place == null) {
@@ -237,7 +264,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             repo.updateFamily(f.code, fields)
-            if (message == null) message = "Uloženo. Glum se řídí novým nastavením od dnešní noci."
+            if (message == null) message = "Uloženo. Nepřátelé se řídí novým nastavením od dnešní noci."
         } catch (e: Exception) {
             message = "Uložení selhalo: ${e.message}"
         } finally {

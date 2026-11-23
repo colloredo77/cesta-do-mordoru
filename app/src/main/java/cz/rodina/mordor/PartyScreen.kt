@@ -57,7 +57,7 @@ fun PartyScreen(vm: MainViewModel, family: Family, game: GameState, me: Member, 
         when (vm.health.status()) {
             HealthConnectClient.SDK_AVAILABLE -> scope.launch {
                 val ok = runCatching { vm.health.hasPermission() }.getOrDefault(false)
-                if (ok) vm.syncHealth() else permLauncher.launch(vm.health.permissions)
+                if (ok) vm.syncHealth() else permLauncher.launch(vm.health.allPermissions)
             }
             HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
                 vm.message = "Nainstalujte nebo aktualizujte Health Connect."
@@ -122,6 +122,12 @@ private fun MemberCard(ms: MemberState, color: Color, isMe: Boolean, onEdit: () 
                 color = color,
                 trackColor = ParchmentDark,
             )
+            if (ms.woundedDaysLeft > 0) {
+                Text(
+                    "Zasažen morgulskou čepelí – ještě ${ms.woundedDaysLeft} ${if (ms.woundedDaysLeft == 1) "den" else "dny"} se počítá polovina kroků.",
+                    style = MaterialTheme.typography.bodySmall, color = Blood, fontWeight = FontWeight.Bold,
+                )
+            }
             Text(
                 "${ms.km.km()} · ${Route.lastReached(ms.km).name} · celkem ${ms.totalSteps.fmt()} kroků" +
                     if (ms.caught > 0) " · Glum dostihl ${ms.caught}×" else "",

@@ -12,6 +12,9 @@ import java.time.Period
 /** Čtení denních kroků z Health Connect (sem je zapisuje Garmin Connect i Mi Fitness). */
 class Health(private val context: Context) {
     val permissions: Set<String> = setOf(HealthPermission.getReadPermission(StepsRecord::class))
+    val backgroundPermission = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+    /** Kroky + čtení na pozadí (pro automatické nahrávání ve 22:00). */
+    val allPermissions: Set<String> = permissions + backgroundPermission
 
     fun status(): Int = HealthConnectClient.getSdkStatus(context)
     fun available(): Boolean = status() == HealthConnectClient.SDK_AVAILABLE
@@ -20,6 +23,9 @@ class Health(private val context: Context) {
 
     suspend fun hasPermission(): Boolean =
         client.permissionController.getGrantedPermissions().containsAll(permissions)
+
+    suspend fun hasBackgroundPermission(): Boolean =
+        client.permissionController.getGrantedPermissions().contains(backgroundPermission)
 
     suspend fun dailySteps(from: LocalDate, to: LocalDate): Map<String, Long> {
         val res = client.aggregateGroupByPeriod(

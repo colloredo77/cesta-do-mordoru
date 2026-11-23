@@ -16,6 +16,7 @@ data class Member(
 }
 
 data class GollumDay(val steps: Long, val reason: String)
+data class EnemyDay(val km: Double, val reason: String)
 
 data class Family(
     val code: String,
@@ -26,6 +27,8 @@ data class Family(
     val lon: Double?,
     val gollumBase: Long,
     val gollumDays: Map<String, GollumDay>,
+    val nazgulBase: Double = 6.0,
+    val nazgulDays: Map<String, EnemyDay> = emptyMap(),
 )
 
 object Characters {
@@ -76,8 +79,9 @@ object Route {
     fun positionAt(km: Double): Pair<Float, Float> {
         val p = points
         if (km <= 0.0) {
-            val f = (min(-km, 50.0) / 50.0).toFloat()
-            return (p[0].x - 0.06f * f) to p[0].y
+            // nepřátelé před startem čekají jihozápadně od Hobitína
+            val f = (min(-km, 80.0) / 80.0).toFloat()
+            return (p[0].x - 0.06f * f) to (p[0].y + 0.16f * f)
         }
         for (i in 1 until p.size) {
             if (km <= p[i].km) {

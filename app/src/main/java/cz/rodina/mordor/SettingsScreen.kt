@@ -1,7 +1,11 @@
 package cz.rodina.mordor
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +22,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.PermissionController
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @Composable
@@ -35,6 +43,16 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
     var name by remember(family.code) { mutableStateOf(family.name) }
     var city by remember(family.code) { mutableStateOf(family.city) }
     var base by remember(family.code) { mutableFloatStateOf(family.gollumBase.toFloat()) }
+    var nBase by remember(family.code) { mutableFloatStateOf(family.nazgulBase.toFloat()) }
+    val scope = rememberCoroutineScope()
+    var bgOk by remember { mutableStateOf<Boolean?>(null) }
+    var notifOk by remember { mutableStateOf(Notifier.canNotify(ctx)) }
+    LaunchedEffect(Unit) { bgOk = runCatching { vm.health.available() && vm.health.hasBackgroundPermission() }.getOrDefault(false) }
+    val hcLauncher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        bgOk = vm.health.backgroundPermission in granted
+        if (bgOk != true) vm.message = "Čtení na pozadí nepovoleno – ve 22:00 přijde jen připomínka."
+    }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifOk = it }
     var confirmLeave by remember { mutableStateOf(false) }
     var confirmRestart by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -61,12 +79,33 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
                 }, modifier = Modifier.fillMaxWidth()) { Text("Poslat kód rodině") }
                 OutlinedTextField(name, { name = it }, label = { Text("Název výpravy") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(city, { city = it }, label = { Text("Město pro počasí") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Text("Glum ujde základně ${base.roundToLong().fmt()} kroků denně (déšť a mlha víc, slunce méně).")
+                Text("Glum ujde základně ${base.roundToLong().fmt()} kroků za noc (déšť a mlha víc, slunce méně).")
                 Slider(value = base, onValueChange = { base = (it / 500f).toInt() * 500f }, valueRange = 3000f..15000f)
-                Button(onClick = { vm.updateFamily(name, city, base.roundToLong()) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                Text("Nazgûl ujede základně ${nBase.toDouble().km()} za noc (tma a mraky víc, slunce a déšť méně).")
+                Slider(value = nBase, onValueChange = { nBase = (it * 2).roundToInt() / 2f }, valueRange = 2f..12f)
+                Button(onClick = { vm.updateFamily(name, city, base.roundToLong(), nBase.toDouble()) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
                     Text("Uložit nastavení výpravy")
                 }
                 Text("Výprava vyrazila: ${dayLabel(family.startDate)} (${family.startDate})", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+            }
+        }
+
+        Title("Automatické nahrávání")
+        ScrollCard {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Každý večer kolem 22:00 aplikace sama nahraje dnešní kroky. Když to nejde nebo je kroků málo, pošle připomínku.")
+                Text("Čtení kroků na pozadí: " + when (bgOk) { true -> "povoleno ✓"; false -> "nepovoleno"; null -> "…" }, fontWeight = FontWeight.Bold)
+                Text("Upozornění: " + if (notifOk) "povolena ✓" else "nepovolena", fontWeight = FontWeight.Bold)
+                if (bgOk == false && vm.health.available()) {
+                    OutlinedButton(onClick = { hcLauncher.launch(vm.health.allPermissions) }, modifier = Modifier.fillMaxWidth()) { Text("Povolit čtení na pozadí") }
+                }
+                if (!notifOk && Build.VERSION.SDK_INT >= 33) {
+                    OutlinedButton(onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }, modifier = Modifier.fillMaxWidth()) { Text("Povolit upozornění") }
+                }
+                Text(
+                    "Pokud Health Connect v telefonu čtení na pozadí neumí, přijde ve 22:00 aspoň připomínka. Android může úlohu o pár minut posunout.",
+                    style = MaterialTheme.typography.bodySmall, color = InkSoft,
+                )
             }
         }
 

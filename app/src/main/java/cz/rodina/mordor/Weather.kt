@@ -7,7 +7,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-data class DayWeather(val code: Int, val precip: Double, val sunshineH: Double, val tmax: Double)
+data class DayWeather(val code: Int, val precip: Double, val sunshineH: Double, val tmax: Double, val daylightH: Double = 10.0)
 data class Place(val name: String, val lat: Double, val lon: Double)
 
 /** Počasí z Open-Meteo (zdarma, bez klíče). */
@@ -35,7 +35,7 @@ object Weather {
     /** Denní počasí za posledních [pastDays] dní (max 92). Klíč = yyyy-MM-dd. */
     suspend fun pastDays(lat: Double, lon: Double, pastDays: Int): Map<String, DayWeather> = withContext(Dispatchers.IO) {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
-            "&daily=weather_code,precipitation_sum,sunshine_duration,temperature_2m_max" +
+            "&daily=weather_code,precipitation_sum,sunshine_duration,temperature_2m_max,daylight_duration" +
             "&past_days=${pastDays.coerceIn(1, 92)}&forecast_days=1&timezone=auto"
         val daily = JSONObject(get(url)).getJSONObject("daily")
         val time = daily.getJSONArray("time")
@@ -43,6 +43,7 @@ object Weather {
         val pr = daily.getJSONArray("precipitation_sum")
         val sun = daily.getJSONArray("sunshine_duration")
         val tmax = daily.getJSONArray("temperature_2m_max")
+        val light = daily.optJSONArray("daylight_duration")
         val out = HashMap<String, DayWeather>()
         for (i in 0 until time.length()) {
             if (code.isNull(i)) continue
@@ -51,6 +52,7 @@ object Weather {
                 precip = if (pr.isNull(i)) 0.0 else pr.getDouble(i),
                 sunshineH = if (sun.isNull(i)) 0.0 else sun.getDouble(i) / 3600.0,
                 tmax = if (tmax.isNull(i)) 10.0 else tmax.getDouble(i),
+                daylightH = if (light == null || light.isNull(i)) 10.0 else light.getDouble(i) / 3600.0,
             )
         }
         out

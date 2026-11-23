@@ -20,14 +20,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -104,7 +109,7 @@ private val labelAbove = setOf("Rádovsko", "Mohylové vrchy", "Větrov", "Brod 
 private fun DrawScope.n(x: Float, y: Float) = Offset(x * size.width, y * size.height)
 
 @Composable
-fun MapScreen(game: GameState, colors: Map<String, Color>) {
+fun MapScreen(game: GameState, colors: Map<String, Color>, family: Family, forecast: Forecast?) {
     val density = LocalDensity.current
     val mapW = with(density) { MAP_W.toPx() }
     val mapH = with(density) { MAP_H.toPx() }
@@ -112,6 +117,7 @@ fun MapScreen(game: GameState, colors: Map<String, Color>) {
     var scale by remember { mutableFloatStateOf(0.9f) }
     var shift by remember { mutableStateOf(Offset.Zero) }
     var centered by remember { mutableStateOf(false) }
+    var showEnemy by remember { mutableStateOf<Enemy?>(null) }
     val scope = rememberCoroutineScope()
     val leaderKm = game.leader?.km ?: 0.0
     val revealKm = Route.next(leaderKm)?.km ?: Route.totalKm
@@ -185,11 +191,24 @@ fun MapScreen(game: GameState, colors: Map<String, Color>) {
                 return Offset(x * mapW * scale + shift.x, y * mapH * scale + shift.y)
             }
             val gp = screen(game.gollumKm)
+            if (game.nazgulActive) {
+                var np = screen(game.nazgulKm)
+                if ((np - gp).getDistance() < with(density) { 34.dp.toPx() }) np += Offset(0f, with(density) { 38.dp.toPx() })
+                NazgulMarker(
+                    36.dp,
+                    Modifier
+                        .offset { IntOffset(np.x.roundToInt(), np.y.roundToInt()) }
+                        .anchor(0.5f, 0.5f)
+                        .clickable { showEnemy = Enemy.NAZGUL },
+                    winged = game.nazgulPhase == 2,
+                )
+            }
             GollumMarker(
                 34.dp,
                 Modifier
-                    .offset { IntOffset(gp.x.roundToInt(), gp.y.roundToInt() + 22.dp.roundToPx()) }
-                    .anchor(0.5f, 0.5f),
+                    .offset { IntOffset(gp.x.roundToInt(), gp.y.roundToInt()) }
+                    .anchor(0.5f, 0.5f)
+                    .clickable { showEnemy = Enemy.GOLLUM },
             )
             val placed = mutableListOf<Offset>()
             game.members.sortedBy { it.km }.forEachIndexed { i, ms ->
@@ -216,6 +235,19 @@ fun MapScreen(game: GameState, colors: Map<String, Color>) {
             }
         }
         StatusPanel(game)
+    }
+
+    showEnemy?.let { e ->
+        AlertDialog(
+            onDismissRequest = { showEnemy = null },
+            containerColor = Parchment,
+            text = {
+                Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
+                    EnemyCard(e, game, family, forecast)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showEnemy = null }) { Text("Zavřít") } },
+        )
     }
 }
 
@@ -298,12 +330,21 @@ private fun StatusPanel(game: GameState) {
                 GollumMarker(22.dp)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    when {
-                        gap < 3 -> "Glum je těsně za ${last.member.name}! Jen ${gap.km()}!"
-                        gap < 10 -> "Glum se blíží – ${gap.km()} za ${last.member.name}."
-                        else -> "Glum je ${gap.km()} za ${last.member.name}."
-                    },
+                    "Nejblíž Glumovi: ${last.member.name} – ${gap.km()}" + if (gap < 5) " – pozor!" else "",
                     color = if (gap < 10) Color(0xFFFF8A65) else Parchment,
+                    fontSize = 13.sp, fontFamily = FontFamily.Serif,
+                )
+            }
+        }
+        val rb = game.ringBearer
+        if (game.nazgulActive && rb != null) {
+            val gap = rb.km - game.nazgulKm
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NazgulMarker(22.dp, winged = game.nazgulPhase == 2)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Nazgûl → Prstenonoš ${rb.member.name}: ${gap.km()}" + if (rb.woundedDaysLeft > 0) " · zranění" else "",
+                    color = if (gap < 15 || rb.woundedDaysLeft > 0) Color(0xFF9BD4FF) else Parchment,
                     fontSize = 13.sp, fontFamily = FontFamily.Serif,
                 )
             }

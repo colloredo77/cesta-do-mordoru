@@ -1,10 +1,14 @@
 package cz.rodina.mordor
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -19,6 +23,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -50,6 +55,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        runCatching { DailySync.schedule(applicationContext) }
         setContent { MordorTheme { App(vm) } }
     }
 }
@@ -94,6 +100,25 @@ fun Loading(text: String, onLeave: (() -> Unit)? = null) {
 @Composable
 fun MainTabs(vm: MainViewModel, family: Family, members: List<Member>, game: GameState, me: Member) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val forecast = vm.forecast
+    val ctx = LocalContext.current
+
+    // jednou požádat o upozornění (Android 13+) kvůli připomínce ve 22:00
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    LaunchedEffect(Unit) {
+        val prefs = ctx.getSharedPreferences("mordor", android.content.Context.MODE_PRIVATE)
+        if (Build.VERSION.SDK_INT >= 33 && !Notifier.canNotify(ctx) && !prefs.getBoolean("askedNotif", false)) {
+            prefs.edit().putBoolean("askedNotif", true).apply()
+            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // ranní hlášení – jednou denně, jakmile jsou spočítané noční pohyby
+    val today = java.time.LocalDate.now()
+    val yesterdayLog = game.days.firstOrNull { it.day == today.minusDays(1).toString() }
+    if (vm.reportDay != today.toString() && yesterdayLog?.gollum != null) {
+        MorningReport(game, members.mapIndexed { i, m -> m.id to MemberColors[i % MemberColors.size] }.toMap(), forecast) { vm.dismissReport() }
+    }
     val colors = members.mapIndexed { i, m -> m.id to MemberColors[i % MemberColors.size] }.toMap()
     val itemColors = NavigationBarItemDefaults.colors(
         selectedIconColor = Blood, selectedTextColor = Blood, indicatorColor = Parchment,
@@ -105,8 +130,9 @@ fun MainTabs(vm: MainViewModel, family: Family, members: List<Member>, game: Gam
             NavigationBar(containerColor = ParchmentDark) {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Place, null) }, label = { Text("Mapa") }, colors = itemColors)
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.Filled.Person, null) }, label = { Text("Výprava") }, colors = itemColors)
-                NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.DateRange, null) }, label = { Text("Kronika") }, colors = itemColors)
-                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.Settings, null) }, label = { Text("Nastavení") }, colors = itemColors)
+                NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Icons.Filled.Warning, null) }, label = { Text("Nepřátelé", maxLines = 1) }, colors = itemColors)
+                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Icons.Filled.DateRange, null) }, label = { Text("Kronika") }, colors = itemColors)
+                NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Icons.Filled.Settings, null) }, label = { Text("Nastavení", maxLines = 1) }, colors = itemColors)
             }
         },
     ) { pad ->
@@ -114,9 +140,10 @@ fun MainTabs(vm: MainViewModel, family: Family, members: List<Member>, game: Gam
             vm.update?.let { UpdateBanner(it) }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
-                0 -> MapScreen(game, colors)
+                0 -> MapScreen(game, colors, family, forecast)
                 1 -> PartyScreen(vm, family, game, me, colors)
-                2 -> ChronicleScreen(game)
+                2 -> EnemiesScreen(game, family, forecast)
+                3 -> ChronicleScreen(game)
                     else -> SettingsScreen(vm, family, members, me)
                 }
             }
