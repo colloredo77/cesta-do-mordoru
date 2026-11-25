@@ -12,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,10 +120,12 @@ fun MapScreen(game: GameState, colors: Map<String, Color>, family: Family, forec
     var shift by remember { mutableStateOf(Offset.Zero) }
     var centered by remember { mutableStateOf(false) }
     var showEnemy by remember { mutableStateOf<Enemy?>(null) }
+    var showStory by remember { mutableStateOf<Waypoint?>(null) }
     val scope = rememberCoroutineScope()
     val leaderKm = game.leader?.km ?: 0.0
-    val revealKm = Route.next(leaderKm)?.km ?: Route.totalKm
+    val revealKm = Route.nextMajor(leaderKm)?.km ?: Route.totalKm
     val nextKm = Route.next(leaderKm)?.km
+    val revealNow by rememberUpdatedState(revealKm)
 
     fun minScale(): Float = if (view.width == 0) 0.3f else max(view.width / mapW, view.height / mapH)
     fun clamp(o: Offset, s: Float): Offset {
@@ -159,6 +163,17 @@ fun MapScreen(game: GameState, colors: Map<String, Color>, family: Family, forec
                 .clipToBounds()
                 .background(Leather)
                 .onSizeChanged { view = it }
+                .pointerInput(Unit) {
+                    detectTapGestures { tap ->
+                        val limit = 30.dp.toPx()
+                        val hit = Route.points
+                            .filter { it.km <= revealNow }
+                            .map { it to (Offset(it.x * mapW * scale + shift.x, it.y * mapH * scale + shift.y) - tap).getDistance() }
+                            .filter { it.second < limit }
+                            .minByOrNull { it.second }
+                        if (hit != null) showStory = hit.first
+                    }
+                }
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
                         val ns = (scale * zoom).coerceIn(minScale(), MAX_SCALE)
@@ -235,6 +250,10 @@ fun MapScreen(game: GameState, colors: Map<String, Color>, family: Family, forec
             }
         }
         StatusPanel(game)
+    }
+
+    showStory?.let { wp ->
+        StoryDialog(wp, game) { showStory = null }
     }
 
     showEnemy?.let { e ->
@@ -416,13 +435,13 @@ private fun BaseMap(leaderKm: Double) {
         marsh(.685f, .585f, .725f, .625f, 41)
 
         // cesta
-        val pts = Route.points.map { n(it.x, it.y) }
+        val pts = Route.majors.map { n(it.x, it.y) }
         val road = Path().apply { moveTo(pts[0].x, pts[0].y); pts.drop(1).forEach { lineTo(it.x, it.y) } }
         drawPath(road, Road.copy(alpha = 0.35f), style = Stroke(7.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         drawPath(road, Road, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 9f))))
         val done = Path().apply {
             moveTo(pts[0].x, pts[0].y)
-            Route.points.drop(1).forEach { if (it.km <= leaderKm) lineTo(it.x * w, it.y * h) }
+            Route.majors.drop(1).forEach { if (it.km <= leaderKm) lineTo(it.x * w, it.y * h) }
             val (lx, ly) = Route.positionAt(leaderKm.coerceAtLeast(0.0))
             lineTo(lx * w, ly * h)
         }
@@ -479,7 +498,17 @@ private fun BaseMap(leaderKm: Double) {
         text(tm, "Velké moře", n(.003f, .62f), small.copy(color = Color(0xFFEFF6F5)))
 
         // zastávky
-        Route.points.forEach { wp ->
+        val minorStyle = TextStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic, fontSize = 10.sp, color = Color(0xFF4A3420))
+        Route.points.filter { it.minor }.forEachIndexed { i, wp ->
+            val c = n(wp.x, wp.y)
+            val reached = wp.km <= leaderKm
+            drawCircle(if (reached) GoldLight else Color(0xFFCFC5B0), 4.dp.toPx(), c)
+            drawCircle(Ink, 4.dp.toPx(), c, style = Stroke(1.dp.toPx()))
+            val l = tm.measure(wp.name, minorStyle)
+            val dy = if (i % 2 == 0) -(l.size.height + 5.dp.toPx()) else 6.dp.toPx()
+            drawText(l, topLeft = Offset(c.x - l.size.width / 2f, c.y + dy))
+        }
+        Route.majors.forEach { wp ->
             val c = n(wp.x, wp.y)
             val reached = wp.km <= leaderKm
             if (reached) flag(c) else stone(c)
@@ -508,9 +537,10 @@ private fun AnimatedLayer(nextKm: Double?) {
         }
         if (nextKm != null) {
             val wp = Route.points.firstOrNull { it.km == nextKm }
+            val big = wp?.minor != true
             if (wp != null) {
                 val c = n(wp.x, wp.y)
-                drawCircle(GoldLight.copy(alpha = 1f - pulse), (8 + pulse * 26).dp.toPx(), c, style = Stroke(3.dp.toPx()))
+                drawCircle(GoldLight.copy(alpha = 1f - pulse), ((if (big) 8 else 5) + pulse * (if (big) 26 else 16)).dp.toPx(), c, style = Stroke(3.dp.toPx()))
                 drawCircle(GoldLight.copy(alpha = (1f - pulse) * 0.6f), (8 + pulse * 14).dp.toPx(), c, style = Stroke(2.dp.toPx()))
             }
         }

@@ -129,6 +129,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         forecastAt = System.currentTimeMillis()
     }
 
+    // ---- kapitoly (příběh při dosažení zastávky)
+    var seenChapters by mutableStateOf(prefs.getStringSet("chapters", emptySet())?.toSet() ?: emptySet()); private set
+    var chaptersInit by mutableStateOf(prefs.getBoolean("chaptersInit", false)); private set
+
+    fun markChapter(key: String) {
+        seenChapters = seenChapters + key
+        prefs.edit().putStringSet("chapters", seenChapters).apply()
+    }
+
+    /** Při prvním spuštění verze s příběhy označí dosavadní zastávky jako přečtené. */
+    fun initChapters(keys: Set<String>) {
+        if (chaptersInit) return
+        seenChapters = seenChapters + keys
+        prefs.edit().putStringSet("chapters", seenChapters).putBoolean("chaptersInit", true).apply()
+        chaptersInit = true
+    }
+
+    // ---- lembas
+    fun useLembas(memberId: String, type: String) = viewModelScope.launch {
+        val code = familyCode ?: return@launch
+        try {
+            repo.setLembasUse(code, memberId, LocalDate.now().toString(), type)
+            message = if (type == "heal") "Lembas snězen – rána se hojí." else "Lembas připraven pro Gluma. Dnes v noci se nehne."
+        } catch (e: Exception) {
+            message = "Nepodařilo se: ${e.message}"
+        }
+    }
+
     fun dismissReport() {
         val t = LocalDate.now().toString()
         prefs.edit().putString("report", t).apply()
@@ -247,11 +275,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateFamily(name: String, city: String, gollumBase: Long, nazgulBase: Double) = viewModelScope.launch {
+    fun updateFamily(name: String, city: String, gollumBase: Long, nazgulBase: Double, lembasThreshold: Long) = viewModelScope.launch {
         val f = family.value ?: return@launch
         busy = true
         try {
-            val fields = mutableMapOf<String, Any?>("name" to name.ifBlank { f.name }, "gollumBase" to gollumBase, "nazgulBase" to nazgulBase)
+            val fields = mutableMapOf<String, Any?>("name" to name.ifBlank { f.name }, "gollumBase" to gollumBase, "nazgulBase" to nazgulBase, "lembasThreshold" to lembasThreshold)
             forecastAt = 0L
             if (city.isNotBlank() && city != f.city) {
                 val place = runCatching { Weather.geocode(city) }.getOrNull()

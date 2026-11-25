@@ -3,7 +3,9 @@ package cz.rodina.mordor
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -47,6 +49,10 @@ fun PartyScreen(vm: MainViewModel, family: Family, game: GameState, me: Member, 
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var editFor by remember { mutableStateOf<Member?>(null) }
+    var badgesFor by remember { mutableStateOf<MemberState?>(null) }
+    var stats by remember { mutableStateOf(false) }
+    val todayKey = LocalDate.now().toString()
+    val gollumFedToday = game.members.any { it.member.lembasUsed[todayKey] == "gollum" }
 
     val permLauncher = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
         if (granted.containsAll(vm.health.permissions)) vm.syncHealth()
@@ -75,6 +81,21 @@ fun PartyScreen(vm: MainViewModel, family: Family, game: GameState, me: Member, 
     ) {
         item { Title(family.name) }
         item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!stats) {
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Společenstvo") }
+                    OutlinedButton(onClick = { stats = true }, modifier = Modifier.weight(1f)) { Text("Statistiky") }
+                } else {
+                    OutlinedButton(onClick = { stats = false }, modifier = Modifier.weight(1f)) { Text("Společenstvo") }
+                    Button(onClick = {}, modifier = Modifier.weight(1f)) { Text("Statistiky") }
+                }
+            }
+        }
+        if (stats) {
+            item { StatsContent(game, colors) }
+            return@LazyColumn
+        }
+        item {
             ScrollCard {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Button(onClick = { sync() }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) { Text("Načíst moje kroky z hodinek") }
@@ -86,7 +107,14 @@ fun PartyScreen(vm: MainViewModel, family: Family, game: GameState, me: Member, 
             }
         }
         items(game.members, key = { it.member.id }) { ms ->
-            MemberCard(ms, colors[ms.member.id] ?: Gold, isMe = ms.member.id == me.id) { editFor = ms.member }
+            MemberCard(
+                ms, colors[ms.member.id] ?: Gold, isMe = ms.member.id == me.id,
+                lembasUsedToday = ms.member.lembasUsed.containsKey(todayKey),
+                gollumFedToday = gollumFedToday,
+                onEdit = { editFor = ms.member },
+                onBadges = { badgesFor = ms },
+                onLembas = { type -> vm.useLembas(ms.member.id, type) },
+            )
         }
         item {
             Text(
@@ -96,13 +124,24 @@ fun PartyScreen(vm: MainViewModel, family: Family, game: GameState, me: Member, 
         }
     }
 
+    badgesFor?.let { ms -> BadgesDialog(ms) { badgesFor = null } }
+
     editFor?.let { m ->
         StepsDialog(m, family, onDismiss = { editFor = null }) { day, steps -> vm.setManual(m.id, day, steps) }
     }
 }
 
 @Composable
-private fun MemberCard(ms: MemberState, color: Color, isMe: Boolean, onEdit: () -> Unit) {
+private fun MemberCard(
+    ms: MemberState,
+    color: Color,
+    isMe: Boolean,
+    lembasUsedToday: Boolean,
+    gollumFedToday: Boolean,
+    onEdit: () -> Unit,
+    onBadges: () -> Unit,
+    onLembas: (String) -> Unit,
+) {
     val m = ms.member
     ScrollCard {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -133,6 +172,33 @@ private fun MemberCard(ms: MemberState, color: Color, isMe: Boolean, onEdit: () 
                     if (ms.caught > 0) " · Glum dostihl ${ms.caught}×" else "",
                 style = MaterialTheme.typography.bodySmall, color = InkSoft,
             )
+            // lembas
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🍞 Lembas: ${ms.lembas}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (ms.lembas > 0 && !lembasUsedToday) {
+                    if (ms.woundedDaysLeft > 0) {
+                        TextButton(onClick = { onLembas("heal") }) { Text("Vyléčit") }
+                    }
+                    if (!gollumFedToday) {
+                        TextButton(onClick = { onLembas("gollum") }) { Text("Zastavit Gluma") }
+                    }
+                }
+            }
+            if (lembasUsedToday) {
+                Text("Dnes už lembas použit.", style = MaterialTheme.typography.bodySmall, color = InkSoft)
+            }
+            // odznaky
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = onBadges),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (ms.badges.isEmpty()) "Zatím žádné odznaky" else ms.badges.keys.mapNotNull { Badges.byId(it)?.icon }.joinToString(" "),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text("Odznaky ${ms.badges.size}/${Badges.list.size} ›", style = MaterialTheme.typography.bodySmall, color = Blood)
+            }
         }
     }
 }
@@ -172,5 +238,32 @@ private fun StepsDialog(m: Member, family: Family, onDismiss: () -> Unit, onSave
             TextButton(onClick = { onSave(key, text.toLongOrNull()); onDismiss() }) { Text("Uložit") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Zavřít") } },
+    )
+}
+
+@Composable
+private fun BadgesDialog(ms: MemberState, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Parchment,
+        title = { Text("Odznaky – ${ms.member.name}") },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(Badges.list) { b ->
+                    val day = ms.badges[b.id]
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (day != null) b.icon else "🔒", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.width(44.dp))
+                        Column {
+                            Text(b.name, fontWeight = FontWeight.Bold, color = if (day != null) Ink else InkSoft)
+                            Text(
+                                b.desc + (if (day != null) " · ${dayLabel(day)}" else ""),
+                                style = MaterialTheme.typography.bodySmall, color = InkSoft,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Zavřít") } },
     )
 }

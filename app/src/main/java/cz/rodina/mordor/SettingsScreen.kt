@@ -44,6 +44,7 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
     var city by remember(family.code) { mutableStateOf(family.city) }
     var base by remember(family.code) { mutableFloatStateOf(family.gollumBase.toFloat()) }
     var nBase by remember(family.code) { mutableFloatStateOf(family.nazgulBase.toFloat()) }
+    var lThr by remember(family.code) { mutableFloatStateOf(family.lembasThreshold.toFloat()) }
     val scope = rememberCoroutineScope()
     var bgOk by remember { mutableStateOf<Boolean?>(null) }
     var notifOk by remember { mutableStateOf(Notifier.canNotify(ctx)) }
@@ -83,7 +84,9 @@ fun SettingsScreen(vm: MainViewModel, family: Family, members: List<Member>, me:
                 Slider(value = base, onValueChange = { base = (it / 500f).toInt() * 500f }, valueRange = 3000f..15000f)
                 Text("Nazgûl ujede základně ${nBase.toDouble().km()} za noc (tma a mraky víc, slunce a déšť méně).")
                 Slider(value = nBase, onValueChange = { nBase = (it * 2).roundToInt() / 2f }, valueRange = 2f..12f)
-                Button(onClick = { vm.updateFamily(name, city, base.roundToLong(), nBase.toDouble()) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
+                Text("Lembas se získá za den s aspoň ${lThr.roundToLong().fmt()} kroky.")
+                Slider(value = lThr, onValueChange = { lThr = (it / 1000f).roundToInt() * 1000f }, valueRange = 8000f..25000f)
+                Button(onClick = { vm.updateFamily(name, city, base.roundToLong(), nBase.toDouble(), lThr.roundToLong()) }, enabled = !vm.busy, modifier = Modifier.fillMaxWidth()) {
                     Text("Uložit nastavení výpravy")
                 }
                 Text("Výprava vyrazila: ${dayLabel(family.startDate)} (${family.startDate})", style = MaterialTheme.typography.bodySmall, color = InkSoft)

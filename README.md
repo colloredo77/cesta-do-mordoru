@@ -37,9 +37,32 @@ Každá další změna kódu v repozitáři sestaví novou verzi a ta se nainsta
 - Pokud telefon počítá kroky i sám, nastavte v Health Connect → Data a přístup → Aktivita → Kroky → Zdroje a priorita hodinky na první místo.
 - Aplikace sama načte kroky při každém otevření, zpětně až 30 dní.
 
+## Aktualizace
+
+- Novou verzi nahrajete na GitHub (Add file → Upload files, přetáhnout složku `app` z nového ZIPu → Commit changes). Sestaví se sama.
+- Aplikace si jednou za hodinu (a v Nastavení → Zkontrolovat aktualizace) zjistí, jestli je na GitHubu novější verze, a ukáže lištu **Stáhnout**. Stažený soubor stačí otevřít a dát Instalovat – data zůstanou.
+- Kontrola funguje jen u **veřejného** repozitáře: Settings → General → úplně dole Danger Zone → Change visibility → Public. Kód pak uvidí kdokoli, ale klíč k Firebase (secret) zůstává skrytý a do vaší výpravy se bez 6místného kódu nikdo nedostane.
+
+## Nepřátelé
+- **Glum** hlídá toho, kdo je nejvíc vzadu. Déšť a mlha ho zrychlují, slunce, sníh a horko zpomalují. Když dožene, vrací o 10 km.
+- **Nazgûl** jde po Prstenonošovi (postava Frodo Pytlík; když ji nikdo nemá, po tom, kdo je nejdál). Zataženo a dlouhé noci ho zrychlují, slunce a déšť zpomalují. Když dožene, Prstenonoš je 3 dny zraněný (počítá se polovina kroků).
+  - Fáze 1: Černý jezdec do Brodu Bruinenu (tam ho smete povodeň). Fáze 2: okřídlený od Mrtvých bažin do Mordoru.
+- Podrobnosti a předpověď na dnešní noc jsou na záložce **Nepřátelé** nebo po klepnutí na žeton na mapě.
+
+## Příběh, lembas, odznaky, statistiky
+- Každá zastávka má krátký příběh – klepněte na ni na mapě nebo na zápis v Kronice. Když ji sami dosáhnete, vyskočí jako nová kapitola. Mezi hlavními zastávkami je 25 menších mezizastávek.
+- **Lembas** dostanete za den s aspoň 15 000 kroky (hranice v Nastavení). Na záložce Výprava ho můžete použít: vyléčit zranění od Nazgûla, nebo zastavit Gluma na jednu noc.
+- **Odznaky** (17 druhů) – na kartě člena na záložce Výprava, nové se ukážou v ranním hlášení.
+- **Statistiky** – Výprava → Statistiky: grafy 7/30 dní, žebříček týdne, průměry a nejlepší dny.
+
+## Automatické nahrávání a ranní hlášení
+- Kolem 22:00 aplikace sama nahraje kroky (pokud je v Nastavení povoleno čtení na pozadí), jinak pošle připomínku.
+- Ráno po otevření ukáže **Co se stalo v noci**.
+
 ## Jak hra funguje
 - Kroky × délka kroku = kilometry. Ruční zadání má přednost před hodinkami a dá se zadat i za ostatní.
 - Glum začíná 25 km za výpravou. Každou noc se pohne podle včerejšího počasí (Open-Meteo). Základní tempo se nastavuje v Nastavení.
 - Když Glum dožene posledního člena, ten se vrátí o 10 km a Glum ustoupí o 15 km.
 - Všechno se přepočítává z uložených kroků. Kroky zadané později se proto projeví i zpětně.
-- Mapa je vlastní stylizovaná kresba trasy a nekopíruje Tolkienovu mapu.
+- Mapa je vlastní stylizovaná kresba a nekopíruje Tolkienovu mapu. Neprozkoumané kraje zakrývá mlha, která se odhaluje, jak výprava postupuje. Mapu jde přibližovat dvěma prsty nebo tlačítky +/−, tlačítko ◎ vrátí pohled k výpravě.
+- V Nastavení jde cestu **začít znovu** (všichni zpět do Hobitína, profily zůstanou) nebo výpravu **smazat** úplně (na všech telefonech).

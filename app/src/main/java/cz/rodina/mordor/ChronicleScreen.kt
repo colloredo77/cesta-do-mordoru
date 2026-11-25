@@ -1,5 +1,6 @@
 package cz.rodina.mordor
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,22 +9,31 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun ChronicleScreen(game: GameState) {
+    var story by remember { mutableStateOf<Waypoint?>(null) }
+    story?.let { StoryDialog(it, game) { story = null } }
     LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Title("Kronika výpravy") }
         items(game.events.reversed()) { e ->
-            ScrollCard {
+            val wp = e.waypoint?.let { Route.byName(it) }
+            ScrollCard(if (wp != null) Modifier.clickable { story = wp } else Modifier) {
                 Column {
                     Text(dayLabel(e.day), style = MaterialTheme.typography.labelMedium, color = InkSoft)
                     Text(
                         e.text,
-                        color = when (e.kind) { Kind.CAUGHT -> Blood; Kind.FINISH -> Gold; Kind.ENEMY -> River; else -> Ink },
+                        color = when (e.kind) { Kind.CAUGHT -> Blood; Kind.FINISH -> Gold; Kind.ENEMY -> River; Kind.LEMBAS -> Elf; else -> Ink },
                         fontWeight = if (e.kind == Kind.WAYPOINT) FontWeight.Normal else FontWeight.Bold,
                     )
+                    if (wp != null) Text("Klepnutím otevřete příběh ›", style = MaterialTheme.typography.labelSmall, color = Blood)
                 }
             }
         }

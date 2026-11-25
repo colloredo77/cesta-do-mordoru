@@ -85,6 +85,9 @@ class Repo {
     suspend fun setHealthSteps(code: String, id: String, days: Map<String, Long>) =
         updatePaths(code, id, days.map { FieldPath.of("health", it.key) to (it.value as Any) })
 
+    suspend fun setLembasUse(code: String, id: String, day: String, type: String) =
+        updatePaths(code, id, listOf(FieldPath.of("lembasUsed", day) to (type as Any)))
+
     suspend fun setManual(code: String, id: String, day: String, steps: Long?) =
         updatePaths(code, id, listOf(FieldPath.of("manual", day) to (steps ?: FieldValue.delete())))
 
@@ -139,6 +142,7 @@ class Repo {
             gollumDays = gd,
             nazgulBase = (s.get("nazgulBase") as? Number)?.toDouble() ?: 6.0,
             nazgulDays = nd,
+            lembasThreshold = s.getLong("lembasThreshold") ?: 15000L,
         )
     }
 
@@ -150,5 +154,8 @@ class Repo {
         strideCm = (s.getLong("strideCm") ?: 70L).toInt(),
         health = longMap(s.get("health")),
         manual = longMap(s.get("manual")),
+        lembasUsed = (s.get("lembasUsed") as? Map<*, *>)?.mapNotNull { (k, v) ->
+            if (k is String && v is String) k to v else null
+        }?.toMap() ?: emptyMap(),
     )
 }

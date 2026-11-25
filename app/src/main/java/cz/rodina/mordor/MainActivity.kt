@@ -116,8 +116,21 @@ fun MainTabs(vm: MainViewModel, family: Family, members: List<Member>, game: Gam
     // ranní hlášení – jednou denně, jakmile jsou spočítané noční pohyby
     val today = java.time.LocalDate.now()
     val yesterdayLog = game.days.firstOrNull { it.day == today.minusDays(1).toString() }
-    if (vm.reportDay != today.toString() && yesterdayLog?.gollum != null) {
-        MorningReport(game, members.mapIndexed { i, m -> m.id to MemberColors[i % MemberColors.size] }.toMap(), forecast) { vm.dismissReport() }
+    val reportPending = vm.reportDay != today.toString() && yesterdayLog?.gollum != null
+    if (reportPending) {
+        MorningReport(game, members.mapIndexed { i, m -> m.id to MemberColors[i % MemberColors.size] }.toMap(), forecast, family) { vm.dismissReport() }
+    }
+
+    // kapitoly: příběh při dosažení zastávky (jen vlastní příchody)
+    val myArrivals = game.events.filter { (it.kind == Kind.WAYPOINT || it.kind == Kind.FINISH) && it.memberId == me.id && it.waypoint != null }
+    if (!vm.chaptersInit) {
+        LaunchedEffect(Unit) { vm.initChapters(myArrivals.map { "${me.id}|${it.waypoint}" }.toSet()) }
+    } else if (!reportPending) {
+        val pending = myArrivals.firstOrNull { "${me.id}|${it.waypoint}" !in vm.seenChapters }
+        val wp = pending?.waypoint?.let { Route.byName(it) }
+        if (pending != null && wp != null) {
+            StoryDialog(wp, game, chapter = true) { vm.markChapter("${me.id}|${pending.waypoint}") }
+        }
     }
     val colors = members.mapIndexed { i, m -> m.id to MemberColors[i % MemberColors.size] }.toMap()
     val itemColors = NavigationBarItemDefaults.colors(

@@ -24,7 +24,7 @@ import java.time.LocalDate
 
 /** Ranní hlášení: co se stalo včera a v noci. Zobrazí se jednou denně. */
 @Composable
-fun MorningReport(game: GameState, colors: Map<String, Color>, forecast: Forecast?, onDismiss: () -> Unit) {
+fun MorningReport(game: GameState, colors: Map<String, Color>, forecast: Forecast?, family: Family, onDismiss: () -> Unit) {
     val yesterday = LocalDate.now().minusDays(1).toString()
     val log = game.days.firstOrNull { it.day == yesterday } ?: return
     val events = game.events.filter { it.day == yesterday && it.kind != Kind.START }
@@ -41,7 +41,10 @@ fun MorningReport(game: GameState, colors: Map<String, Color>, forecast: Forecas
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Avatar(ms.member.photo, ms.member.name, 30.dp, colors[ms.member.id] ?: Gold)
                         Spacer(Modifier.width(8.dp))
-                        Text("${ms.member.name}: ${s.fmt()} kroků (${(s * ms.member.strideCm / 100_000.0).km()})")
+                        Text(
+                            "${ms.member.name}: ${s.fmt()} kroků (${(s * ms.member.strideCm / 100_000.0).km()})" +
+                                if (s >= family.lembasThreshold) " · +1 🍞" else "",
+                        )
                     }
                 }
                 Text("Celkem výprava: ${log.familySteps.fmt()} kroků", style = MaterialTheme.typography.bodySmall, color = InkSoft)
@@ -61,6 +64,15 @@ fun MorningReport(game: GameState, colors: Map<String, Color>, forecast: Forecas
                         Spacer(Modifier.width(8.dp))
                         Text("Nazgûl +${it.km.km()} – ${it.reason.lowercase()}")
                     }
+                }
+
+                val newBadges = game.members.flatMap { ms ->
+                    ms.badges.filter { it.value == yesterday }.keys.mapNotNull { id -> Badges.byId(id)?.let { ms.member.name to it } }
+                }
+                if (newBadges.isNotEmpty()) {
+                    HorizontalDivider(color = Gold.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Nové odznaky:", style = MaterialTheme.typography.titleSmall, color = Blood)
+                    newBadges.forEach { (name, b) -> Text("${b.icon} $name – ${b.name}") }
                 }
 
                 if (events.isNotEmpty()) {
