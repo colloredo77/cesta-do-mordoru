@@ -133,7 +133,7 @@ fun StatsContent(game: GameState, colors: Map<String, Color>) {
     }
 }
 
-private val shortDay = java.time.format.DateTimeFormatter.ofPattern("EEEEEE", Locale("cs", "CZ"))
+private val shortDay = java.time.format.DateTimeFormatter.ofPattern("EEE", Locale("cs", "CZ"))
 
 @Composable
 private fun BarChart(days: List<String>, members: List<MemberState>, colors: Map<String, Color>) {
